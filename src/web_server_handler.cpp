@@ -410,7 +410,8 @@ void handleApiLogs(AsyncWebServerRequest *request, JsonArray &root) {
 }
 
 void handleApiLastAddr(AsyncWebServerRequest *request, JsonObject &root) {
-  root["address"] = bytesToHexString(IOHC::lastFromAddress, sizeof(IOHC::lastFromAddress)).c_str();
+  const IOHC::Address3 addr = IOHC::lastFromAddress.load();
+  root["address"] = bytesToHexString(addr.b, sizeof(addr.b)).c_str();
 }
 
 static bool jsonToBool(JsonVariant variant, bool &value) {
