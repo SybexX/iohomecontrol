@@ -16,7 +16,12 @@
             requestOptions.cache = "no-store";
         }
 
-        const response = await fetch(requestUrl, requestOptions);
+        let response;
+        try {
+            response = await fetch(requestUrl, requestOptions);
+        } catch (error) {
+            throw new Error("Device unreachable. Check that it's online or hasn't just restarted.");
+        }
         const data = await ensureJson(response);
         if (!response.ok) {
             throw new Error(data.message || ("HTTP error " + response.status));

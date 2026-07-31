@@ -201,6 +201,7 @@
     function initWebSocket(app) {
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         const ws = new WebSocket(wsScheme + "://" + window.location.host + "/ws");
+        app.state.ws = ws;
 
         ws.onmessage = function (event) {
             const data = JSON.parse(event.data);
@@ -216,14 +217,18 @@
         };
 
         ws.onopen = function () {
-            app.logStatus("WebSocket connected");
+            app.state.wsConnected = true;
         };
 
         ws.onclose = function () {
-            app.logStatus("WebSocket disconnected", true);
+            app.state.wsConnected = false;
+            if (!app.state.wsReconnectTimer) {
+                app.state.wsReconnectTimer = setTimeout(function () {
+                    app.state.wsReconnectTimer = null;
+                    initWebSocket(app);
+                }, 2000);
+            }
         };
-
-        app.state.ws = ws;
     }
 
     function bindEvents(app) {
