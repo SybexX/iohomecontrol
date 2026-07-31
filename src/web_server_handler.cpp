@@ -22,8 +22,9 @@
 #include <nvs_helpers.h>
 #include <oled_display.h>
 #include <version_info.h>
-#if defined(SYSLOG)
 #include <WiFi.h>
+#include <wifi_helper.h>
+#if defined(SYSLOG)
 #include <syslog_helper.h>
 #endif
 #include <tokens.h>
@@ -414,6 +415,188 @@ void handleApiLastAddr(AsyncWebServerRequest *request, JsonObject &root) {
   root["address"] = bytesToHexString(addr.b, sizeof(addr.b)).c_str();
 }
 
+static void scheduleRestart(const char *taskName) {
+  static std::atomic<bool> rebootScheduled{false};
+  if (!rebootScheduled.exchange(true)) {
+    xTaskCreate(
+      [](void *) {
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        ESP.restart();
+      },
+      taskName,
+      2048,
+      nullptr,
+      5,
+      nullptr
+    );
+  }
+}
+
+static bool isValidHostname(const String &hostname) {
+  if (hostname.length() == 0 || hostname.length() > 31) {
+    return false;
+  }
+  for (size_t i = 0; i < hostname.length(); ++i) {
+    const char c = hostname.charAt(i);
+    if (!isalnum(c) && c != '-') {
+      return false;
+    }
+  }
+  return hostname.charAt(0) != '-' && hostname.charAt(hostname.length() - 1) != '-';
+}
+
+static bool isValidIpString(const String &value) {
+  IPAddress ip;
+  return value.length() > 0 && ip.fromString(value);
+}
+
+void handleApiNetworkGet(AsyncWebServerRequest *request, JsonObject &root) {
+  root["hostname"] = WiFi.getHostname() ? WiFi.getHostname() : "MiOpenIO";
+  root["dhcp"] = true;
+  root["connected"] = WiFi.status() == WL_CONNECTED;
+  root["ip"] = WiFi.localIP().toString();
+  root["mask"] = WiFi.subnetMask().toString();
+  root["gateway"] = WiFi.gatewayIP().toString();
+  root["dns1"] = WiFi.dnsIP(0).toString();
+  root["dns2"] = WiFi.dnsIP(1).toString();
+  root["sntp"] = "pool.ntp.org";
+}
+
+void handleApiNetworkSet(AsyncWebServerRequest *request, JsonObject &doc, JsonObject &root) {
+  String hostname = doc["hostname"] | "MiOpenIO";
+  bool dhcp = doc["dhcp"] | true;
+  String ip = doc["ip"] | "";
+  String mask = doc["mask"] | "";
+  String gateway = doc["gateway"] | "";
+  String dns1 = doc["dns1"] | "";
+  String dns2 = doc["dns2"] | "";
+  String sntp = doc["sntp"] | "";
+  hostname.trim(); ip.trim(); mask.trim(); gateway.trim(); dns1.trim(); dns2.trim(); sntp.trim();
+
+  if (!isValidHostname(hostname)) {
+    request->send(400, "application/json", "{\"success\":false,\"message\":\"Invalid hostname\"}");
+    return;
+  }
+
+  if (!dhcp) {
+    if (!isValidIpString(ip) || !isValidIpString(mask) || !isValidIpString(gateway)) {
+      request->send(400, "application/json", "{\"success\":false,\"message\":\"Static IP, mask and gateway are required\"}");
+      return;
+    }
+    if ((!dns1.isEmpty() && !isValidIpString(dns1)) || (!dns2.isEmpty() && !isValidIpString(dns2))) {
+      request->send(400, "application/json", "{\"success\":false,\"message\":\"Invalid DNS address\"}");
+      return;
+    }
+  }
+
+  nvs_write_string(NVS_KEY_NET_HOST, std::string(hostname.c_str()));
+  nvs_write_bool(NVS_KEY_NET_DHCP, dhcp);
+  nvs_write_string(NVS_KEY_NET_IP, std::string(ip.c_str()));
+  nvs_write_string(NVS_KEY_NET_MASK, std::string(mask.c_str()));
+  nvs_write_string(NVS_KEY_NET_GW, std::string(gateway.c_str()));
+  nvs_write_string(NVS_KEY_NET_DNS1, std::string(dns1.c_str()));
+  nvs_write_string(NVS_KEY_NET_DNS2, std::string(dns2.c_str()));
+  nvs_write_string(NVS_KEY_NET_SNTP, std::string(sntp.c_str()));
+
+  root["success"] = true;
+  root["message"] = "Network config saved, rebooting";
+  root["dhcp"] = dhcp;
+  root["hostname"] = hostname;
+  scheduleRestart("net-reboot");
+}
+
+void handleApiFallbackGet(AsyncWebServerRequest *request, JsonObject &root) {
+  bool enabled = true;
+  uint16_t bootRetries = 3;
+  uint16_t runRetries = 3;
+  uint16_t timeout = 600;
+  nvs_read_bool(NVS_KEY_FB_ENABLED, enabled);
+  nvs_read_u16(NVS_KEY_FB_BOOT, bootRetries);
+  nvs_read_u16(NVS_KEY_FB_RUN, runRetries);
+  nvs_read_u16(NVS_KEY_FB_TIMEOUT, timeout);
+  root["enabled"] = enabled;
+  root["retriesBoot"] = bootRetries;
+  root["retriesRunning"] = runRetries;
+  root["timeout"] = timeout;
+}
+
+void handleApiFallbackSet(AsyncWebServerRequest *request, JsonObject &doc, JsonObject &root) {
+  nvs_write_bool(NVS_KEY_FB_ENABLED, doc["enabled"] | true);
+  nvs_write_u16(NVS_KEY_FB_BOOT, static_cast<uint16_t>(doc["retriesBoot"] | 3));
+  nvs_write_u16(NVS_KEY_FB_RUN, static_cast<uint16_t>(doc["retriesRunning"] | 3));
+  nvs_write_u16(NVS_KEY_FB_TIMEOUT, static_cast<uint16_t>(doc["timeout"] | 600));
+  root["success"] = true;
+  root["message"] = "Fallback AP settings saved";
+}
+
+void handleApiWifiGet(AsyncWebServerRequest *request, JsonObject &root) {
+  root["ssid"] = getConfiguredWiFiSSID();
+  root["connected"] = WiFi.status() == WL_CONNECTED;
+  root["currentSsid"] = WiFi.SSID();
+  root["ip"] = WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "";
+  root["rssi"] = wifiStatus.rssi.load();
+  root["quality"] = wifiStatus.signalStrengthPercent.load();
+}
+
+void handleApiWifiScan(AsyncWebServerRequest *request, JsonObject &root) {
+  WiFi.scanDelete();
+  WiFi.mode(WIFI_STA);
+
+  int count = WiFi.scanNetworks(false, false);
+  if (count <= 0) {
+    WiFi.scanDelete();
+    delay(250);
+    count = WiFi.scanNetworks(false, true);
+  }
+
+  root["count"] = count;
+  root["status"] = WiFi.status();
+  root["connected"] = WiFi.status() == WL_CONNECTED;
+  root["ssid"] = WiFi.SSID();
+  JsonArray networks = root["networks"].to<JsonArray>();
+
+  if (count < 0) {
+    WiFi.scanDelete();
+    return;
+  }
+
+  for (int i = 0; i < count; ++i) {
+    const String ssid = WiFi.SSID(i);
+    if (ssid.isEmpty()) {
+      continue;
+    }
+    JsonObject item = networks.add<JsonObject>();
+    item["ssid"] = ssid;
+    item["rssi"] = WiFi.RSSI(i);
+    item["secure"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+    item["channel"] = WiFi.channel(i);
+  }
+  WiFi.scanDelete();
+}
+
+void handleApiWifiSet(AsyncWebServerRequest *request, JsonObject &doc, JsonObject &root) {
+  String ssid = doc["ssid"] | "";
+  String password = doc["password"] | "";
+  ssid.trim();
+
+  if (ssid.isEmpty() || ssid.length() > 32) {
+    request->send(400, "application/json",
+                  "{\"success\":false,\"message\":\"SSID is required and must be 32 characters or less\"}");
+    return;
+  }
+  if (password.length() > 64) {
+    request->send(400, "application/json",
+                  "{\"success\":false,\"message\":\"Password is too long\"}");
+    return;
+  }
+
+  saveWiFiCredentials(ssid, password);
+  root["success"] = true;
+  root["message"] = "WiFi settings saved, rebooting";
+  root["ssid"] = ssid;
+  scheduleRestart("wifi-reboot");
+}
+
 static bool jsonToBool(JsonVariant variant, bool &value) {
   if (variant.is<bool>()) {
     value = variant.as<bool>();
@@ -765,6 +948,10 @@ void setupWebServer() {
   server.on("/api/remotes", HTTP_GET, jsonGet(handleApiRemotes));
   server.on("/api/logs", HTTP_GET, jsonGet(handleApiLogs));
   server.on("/api/lastaddr", HTTP_GET, jsonGet(handleApiLastAddr));
+  server.on("/api/wifi-scan", HTTP_GET, jsonGet(handleApiWifiScan));
+  server.on("/api/wifi", HTTP_GET, jsonGet(handleApiWifiGet));
+  server.on("/api/network", HTTP_GET, jsonGet(handleApiNetworkGet));
+  server.on("/api/fallback", HTTP_GET, jsonGet(handleApiFallbackGet));
 #if defined(SSD1306_DISPLAY)
   server.on("/api/display", HTTP_GET, jsonGet(handleApiDisplayGet));
 #endif
@@ -776,6 +963,9 @@ void setupWebServer() {
 #endif
   server.on("/api/command", HTTP_POST, jsonPost(handleApiCommand));
   server.on("/api/action", HTTP_POST, jsonPost(handleApiAction));
+  server.on("/api/wifi", HTTP_POST, jsonPost(handleApiWifiSet));
+  server.on("/api/network", HTTP_POST, jsonPost(handleApiNetworkSet));
+  server.on("/api/fallback", HTTP_POST, jsonPost(handleApiFallbackSet));
 #if defined(SSD1306_DISPLAY)
   server.on("/api/display", HTTP_POST, jsonPost(handleApiDisplaySet));
 #endif
