@@ -42,6 +42,8 @@ header {
   padding: 1em 10px;
   text-align: center;
   display: flex;
+  align-items: center;
+  gap: 10px;
 }
 header h1 {
   margin: 0 auto;
@@ -66,12 +68,36 @@ main > div {
 nav{
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
+}
+#menu-toggle, #menu-close, #menu-backdrop {
+    display: none;
 }
 nav .items {
     padding: 12px 8px;
     margin: 0 8px 0 0;
     border-radius: var(--radius);
     transition: background 0.3s;
+}
+nav .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text);
+    text-decoration: none;
+    cursor: pointer;
+}
+nav .nav-link:visited, nav .nav-link:hover, nav .nav-link:active {
+    color: var(--color-text);
+    text-decoration: none;
+}
+.nav-icon {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    display: block;
+    filter: brightness(0) invert(1);
+    opacity: 0.92;
 }
 nav .items:hover {
     background: var(--color-accent3);
@@ -374,13 +400,110 @@ header h1 {
     }
 }
 @media (max-width: 640px) {
+    body.menu-open {
+      overflow: hidden;
+    }
     header {
       gap: 10px;
       align-items: center;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
-    nav {
+    header h1 {
+      display: block;
+      font-size: 1.05rem;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #menu-toggle {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.18);
+      cursor: pointer;
+      flex-shrink: 0;
+      padding-left: 11px;
+    }
+    #menu-toggle span {
+      display: block;
+      width: 21px;
+      height: 2px;
+      margin: 0 auto;
+      background: var(--color-header-text);
+    }
+    #menu-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.38);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 899;
+    }
+    body.menu-open #menu-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    nav#main-menu {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(82vw, 310px);
+      background: var(--color-accent2);
+      color: var(--color-text);
+      z-index: 900;
+      padding: 64px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      gap: 8px;
+      transform: translateX(100%);
+      transition: transform 0.22s ease;
+      box-shadow: -10px 0 30px rgba(0,0,0,0.24);
+    }
+    body.menu-open #main-menu {
+      transform: translateX(0);
+    }
+    #menu-close {
+      display: block;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: var(--radius);
+      background: var(--color-input);
+      color: var(--color-text);
+      font-size: 28px;
+        line-height: 0.9;
+        padding-left: 11px;
+        cursor: pointer;
+    }
+    nav#main-menu .items {
       width: 100%;
+      margin: 0;
+      color: var(--color-header-text);
+      background: transparent;
+    }
+    nav#main-menu .nav-icon {
+      filter: brightness(0) invert(1);
+    }
+    nav#main-menu select.items {
+      background: var(--background);
+      color: var(--color-text);
+    }
+    #toggle-theme {
+      width: 44px;
     }
     .send-messages {
       grid-template-columns: 1fr;

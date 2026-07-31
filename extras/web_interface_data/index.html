@@ -13,10 +13,24 @@
     <header>
         <img src="img/logo.png" alt="MiOpen.IO Logo" class="logo">
         <h1 data-i18n="header.title">Device Control</h1>
-        <nav>
-            <a onclick="showPage('devices')" class="items" data-i18n="nav.devices">Devices</a>
-            <a onclick="showPage('help')" class="items" data-i18n="nav.help">Log</a>
-            <a onclick="showPage('settings')" class="items" data-i18n="nav.settings">Settings</a>
+        <button id="menu-toggle" aria-label="Open menu" aria-expanded="false" type="button">
+            <span></span><span></span><span></span>
+        </button>
+        <div id="menu-backdrop"></div>
+        <nav id="main-menu">
+            <button id="menu-close" aria-label="Close menu" type="button">&times;</button>
+            <a onclick="showPage('devices')" class="items nav-link">
+                <img class="nav-icon" src="img/devices.svg" alt="">
+                <span data-i18n="nav.devices">Devices</span>
+            </a>
+            <a onclick="showPage('help')" class="items nav-link">
+                <img class="nav-icon" src="img/help.svg" alt="">
+                <span data-i18n="nav.help">Log</span>
+            </a>
+            <a onclick="showPage('settings')" class="items nav-link">
+                <img class="nav-icon" src="img/settings.svg" alt="">
+                <span data-i18n="nav.settings">Settings</span>
+            </a>
             <select class="items" id="lang" onchange="setLang(this.value)">
                 <option value="nl">NL</option>
                 <option value="en">EN</option>
@@ -25,7 +39,7 @@
             </select>
             <a class="items"id="toggle-theme"></a>
         </nav>
-        
+
     </header>
 
     <main>
@@ -252,13 +266,7 @@
     <script src="js/remotes.js?v=20260526b"></script>
     <script src="js/settings.js?v=20260526b"></script>
     <script src="js/app.js?v=20260526b"></script>
-    <script>
-        function showPage(page) {
-            document.getElementById('devices-page').style.display = (page === 'devices') ? 'grid' : 'none';
-            document.getElementById('settings-page').style.display = (page === 'settings') ? 'grid' : 'none';
-            document.getElementById('help-page').style.display = (page === 'help') ? 'grid' : 'none';
-        }
-    </script>
+    <script src="js/menu.js?v=20260731a"></script>
 </body>
 
 </html>
