@@ -389,11 +389,12 @@ bool msgRcvd(IOHC::iohcPacket *iohc) {
                 std::vector<uint8_t> challengeAsked;
                 //                    challengeAsked.assign(iohc->payload.packet.msg.variableData.data, iohc->payload.packet.msg.variableData.data + iohc->payload.packet.msg.variableData.size);
                 challengeAsked.assign(iohc->payload.buffer + 9, iohc->payload.buffer + 15);
-                printf("Challenge asked after LastSend Command %2.2X\n", IOHC::lastSendCmd);
+                const size_t lastSendCmd = IOHC::lastSendCmd.load();
+                printf("Challenge asked after LastSend Command %2.2X\n", lastSendCmd);
                 printf("Challenge asked after Memorized Command %2.2X\n", cozyDevice2W->memorizeSend.memorizedCmd);
 
                 if (Cmd::scanMode) {
-                    otherDevice2W->mapValid[IOHC::lastSendCmd] = iohcDevice::RECEIVED_CHALLENGE_REQUEST_0x3C;
+                    otherDevice2W->mapValid[lastSendCmd] = iohcDevice::RECEIVED_CHALLENGE_REQUEST_0x3C;
                     break;
                 }
 
