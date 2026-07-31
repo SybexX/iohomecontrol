@@ -17,6 +17,8 @@
 #include <wifi_helper.h>
 #include <oled_display.h>
 #include <user_config.h>
+#include <nvs_helpers.h>
+#include <log_buffer.h>
 #if defined(MQTT)
 #include <mqtt_handler.h>
 #endif
@@ -28,14 +30,19 @@
 #include <TickerUsESP32.h>
 #include <tuple>
 
-const long PORTAL_TIMEOUT = 300000; // 5 minuten = 300.000 ms
+const long PORTAL_TIMEOUT = 300000; // 5 minuten = 300.000 ms, used only as a fallback if NVS has no configured timeout
 const uint32_t WIFI_NOTIFY_GOT_IP = BIT0;
 const uint32_t WIFI_NOTIFY_DISCONNECTED = BIT1;
 const uint32_t WIFI_NOTIFY_RECONNECT = BIT2;
+static constexpr uint32_t WIFI_STACK_RESET_AFTER_MS = 120000;  // 2 min disconnected -> reset the WiFi stack
+static constexpr uint32_t WIFI_RESTART_AFTER_MS = 1800000;     // 30 min disconnected -> restart the device
 
 // below variables are thread safe because of the use of a single task that reads/modifies them (except for wifiStatus, but that one has atomic fields)
 TimersUS::TickerUsESP32 wifiReconnectTimer {};
 TimersUS::TickerUsESP32 rssiTimer {};
+static uint32_t s_wifiDisconnectedSinceMs = 0;
+static uint32_t s_lastWiFiStackResetMs = 0;
+static uint16_t s_wifiReconnectAttempts = 0;
 WiFiStatus wifiStatus = { ConnState::Disconnected, 0, 0 };
 
 TaskHandle_t wifiWorkerTaskHandle = NULL;
@@ -87,6 +94,14 @@ static void handleWifiConnected() {
         wifiStatus.connectionStatus = ConnState::Connected;
         wifiStatus.rssi = WiFi.RSSI();
         wifiStatus.signalStrengthPercent = rssiToQuality(wifiStatus.rssi);
+        s_wifiDisconnectedSinceMs = 0;
+        s_lastWiFiStackResetMs = 0;
+        s_wifiReconnectAttempts = 0;
+
+        if (WiFi.getMode() == WIFI_AP_STA) {
+            Serial.println("WiFi: connected, disabling fallback AP mode");
+            WiFi.mode(WIFI_STA);
+        }
 
         wifiReconnectTimer.detach();
         rssiTimer.attach(5, rssiTimerCb);
@@ -115,6 +130,9 @@ static void configureWifiDisconnected() {
     wifiStatus.connectionStatus = ConnState::Disconnected;
     wifiStatus.signalStrengthPercent = 0;
     wifiStatus.rssi = 0;
+    if (s_wifiDisconnectedSinceMs == 0) {
+        s_wifiDisconnectedSinceMs = millis();
+    }
     rssiTimer.detach();
     wifiReconnectTimer.attach(10, wifiReconnectTimerCb);
     mdnsStarted = false;
@@ -151,12 +169,141 @@ static std::string getConfiguredSSID() {
     return std::string(reinterpret_cast<const char*>(conf.sta.ssid));
 }
 
+String getConfiguredWiFiSSID() {
+    return String(getConfiguredSSID().c_str());
+}
+
+void saveWiFiCredentials(const String &ssid, const String &password) {
+    String passwordToSave = password;
+    if (passwordToSave.length() == 0) {
+        wifi_config_t conf {};
+        if (esp_wifi_get_config(WIFI_IF_STA, &conf) == ESP_OK) {
+            passwordToSave = String(reinterpret_cast<const char*>(conf.sta.password));
+        }
+    }
+
+    WiFi.persistent(true);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), passwordToSave.c_str());
+}
+
+static bool readNetworkStringValue(const char *key, String &out) {
+    std::string value;
+    if (!nvs_read_string(key, value) || value.empty()) {
+        return false;
+    }
+    out = String(value.c_str());
+    return true;
+}
+
+static String readNetworkString(const char *key, const char *defaultValue = "") {
+    String value;
+    return readNetworkStringValue(key, value) ? value : String(defaultValue);
+}
+
+static bool parseIPAddressValue(const String &value, IPAddress &address) {
+    return value.length() > 0 && address.fromString(value);
+}
+
+static String getSavedHostname() {
+    String hostname = readNetworkString(NVS_KEY_NET_HOST, "MiOpenIO");
+    hostname.trim();
+    return hostname.length() > 0 ? hostname : String("MiOpenIO");
+}
+
+static void applySavedNetworkSettings() {
+    const String hostname = getSavedHostname();
+    WiFi.setHostname(hostname.c_str());
+
+    bool dhcp = true;
+    nvs_read_bool(NVS_KEY_NET_DHCP, dhcp);
+    if (dhcp) {
+        return;
+    }
+
+    IPAddress ip, gateway, mask, dns1, dns2;
+    const bool hasIp = parseIPAddressValue(readNetworkString(NVS_KEY_NET_IP), ip);
+    const bool hasGateway = parseIPAddressValue(readNetworkString(NVS_KEY_NET_GW), gateway);
+    const bool hasMask = parseIPAddressValue(readNetworkString(NVS_KEY_NET_MASK), mask);
+    parseIPAddressValue(readNetworkString(NVS_KEY_NET_DNS1), dns1);
+    parseIPAddressValue(readNetworkString(NVS_KEY_NET_DNS2), dns2);
+
+    if (hasIp && hasGateway && hasMask) {
+        if (!WiFi.config(ip, gateway, mask, dns1, dns2)) {
+            Serial.println("WiFi: static network config failed, falling back to DHCP");
+        }
+    } else {
+        Serial.println("WiFi: static network config incomplete, falling back to DHCP");
+    }
+}
+
+static bool readFallbackEnabled() {
+    bool enabled = true;
+    nvs_read_bool(NVS_KEY_FB_ENABLED, enabled);
+    return enabled;
+}
+
+static uint16_t readFallbackU16(const char *key, uint16_t fallback) {
+    uint16_t value = fallback;
+    nvs_read_u16(key, value);
+    return value;
+}
+
+static uint32_t readFallbackTimeoutMs() {
+    const uint16_t timeoutSeconds = readFallbackU16(NVS_KEY_FB_TIMEOUT, 600);
+    return static_cast<uint32_t>(timeoutSeconds) * 1000UL;
+}
+
+static void resetWiFiStack() {
+    Serial.println("WiFi: Resetting WiFi stack after prolonged disconnect...");
+    addLogMessage("WiFi: resetting WiFi stack");
+    WiFi.disconnect(false, false);
+    vTaskDelay(pdMS_TO_TICKS(250));
+    WiFi.mode(WIFI_OFF);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    WiFi.mode(WIFI_STA);
+    applySavedNetworkSettings();
+    applyAdvancedWiFiSettings();
+    WiFi.begin();
+    s_lastWiFiStackResetMs = millis();
+}
+
+static void runConfigPortal(const std::string& ssid, bool hasWifiConfiguration);
+
 static void triggerWiFiReconnect() {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi: Trigger WiFi reconnect...");
-        applyAdvancedWiFiSettings(); 
-        WiFi.mode(WIFI_STA); 
+        applyAdvancedWiFiSettings();
+        WiFi.mode(WIFI_STA);
         WiFi.begin();
+        s_wifiReconnectAttempts++;
+
+        const uint32_t now = millis();
+
+        // After N failed reconnect attempts, open a fallback AP so the
+        // device stays reachable for reconfiguration.
+        const uint16_t runtimeFallbackRetries = readFallbackU16(NVS_KEY_FB_RUN, 3);
+        if (readFallbackEnabled() && runtimeFallbackRetries > 0 &&
+            s_wifiReconnectAttempts >= runtimeFallbackRetries) {
+            Serial.println("WiFi: opening fallback AP after reconnect retries");
+            addLogMessage("WiFi: opening fallback AP after reconnect retries");
+            s_wifiReconnectAttempts = 0;
+            runConfigPortal(getConfiguredSSID(), true);
+            return;
+        }
+
+        if (s_wifiDisconnectedSinceMs != 0) {
+            if (static_cast<int32_t>(now - s_wifiDisconnectedSinceMs) >= static_cast<int32_t>(WIFI_STACK_RESET_AFTER_MS) &&
+                static_cast<int32_t>(now - s_lastWiFiStackResetMs) >= static_cast<int32_t>(WIFI_STACK_RESET_AFTER_MS)) {
+                resetWiFiStack();
+            }
+
+            if (static_cast<int32_t>(now - s_wifiDisconnectedSinceMs) >= static_cast<int32_t>(WIFI_RESTART_AFTER_MS)) {
+                Serial.println("WiFi: disconnected too long, restarting device");
+                addLogMessage("WiFi: disconnected too long, restarting device");
+                esp_restart();
+            }
+        }
     }
 }
 
@@ -177,7 +324,10 @@ static void runConfigPortal(const std::string& ssid, bool hasWifiConfiguration) 
     applyAdvancedWiFiSettings();
     wm.setConfigPortalBlocking(false);
     wm.setDisableConfigPortal(true); // allow config portal shutdown when previous configured wifi comes available.
-    wm.setConfigPortalTimeout(PORTAL_TIMEOUT / 1000);
+    const uint32_t portalTimeoutMs = readFallbackTimeoutMs();
+    if (portalTimeoutMs > 0) {
+        wm.setConfigPortalTimeout(portalTimeoutMs / 1000);
+    }
     wm.autoConnect("iohc-setup");
 
     const unsigned long portalStartTime = millis();
@@ -191,9 +341,13 @@ static void runConfigPortal(const std::string& ssid, bool hasWifiConfiguration) 
         }
         displayCustomMessage("Custom WiFi AP", "iohc-setup");
 
-        const long millisRemaining = PORTAL_TIMEOUT - static_cast<long>(millis() - portalStartTime);
-        auto remainingTime = millisToMinutesAndSeconds(millisRemaining);
-        displayCustomMessage("Remaining time", format("%2dm %02ds", std::get<0>(remainingTime), std::get<1>(remainingTime)).c_str());
+        const long millisRemaining = portalTimeoutMs == 0 ? 0 : static_cast<long>(portalTimeoutMs) - static_cast<long>(millis() - portalStartTime);
+        if (portalTimeoutMs > 0) {
+            auto remainingTime = millisToMinutesAndSeconds(millisRemaining);
+            displayCustomMessage("Remaining time", format("%2dm %02ds", std::get<0>(remainingTime), std::get<1>(remainingTime)).c_str());
+        } else {
+            displayCustomMessage("Remaining time", "disabled");
+        }
 
         const bool connected = wm.process(); // Required for async config portal handling
 
@@ -206,7 +360,7 @@ static void runConfigPortal(const std::string& ssid, bool hasWifiConfiguration) 
                 // workaround for bug in WiFiManager that causes the config portal webserver not to be shut down correctly (keeps port in use)
                 esp_restart();
             }
-        } else if (millisRemaining < 0) {
+        } else if (portalTimeoutMs > 0 && millisRemaining < 0) {
             Serial.println("WiFi: Config portal timeout, closing portal...");
             portalClosed = true;
 
@@ -229,14 +383,21 @@ static void wifiWorker(void * pvParameters) {
     const std::string ssid = getConfiguredSSID();
     const bool hasWifiConfiguration = !ssid.empty();
     if (hasWifiConfiguration) {
-        applyAdvancedWiFiSettings();
-        WiFi.begin();
-
-        Serial.printf("WiFi: Attempt connection to '%s', try for max 30 seconds...\n", ssid.c_str());
-        status = (wl_status_t)WiFi.waitForConnectResult(30000);
+        const uint16_t bootRetries = readFallbackU16(NVS_KEY_FB_BOOT, 3);
+        for (uint16_t attempt = 0; attempt < bootRetries && status != WL_CONNECTED; ++attempt) {
+            applyAdvancedWiFiSettings();
+            WiFi.begin();
+            Serial.printf("WiFi: Attempt connection to '%s' (%u/%u)...\n", ssid.c_str(), attempt + 1, bootRetries);
+            status = (wl_status_t)WiFi.waitForConnectResult(10000);
+        }
     }
     if (status != WL_CONNECTED) {
-        runConfigPortal(ssid, hasWifiConfiguration);
+        // If there's no saved network, we always need the portal so the
+        // device can be configured at all. If a network IS configured but
+        // unreachable, only open the portal when fallback AP is enabled.
+        if (!hasWifiConfiguration || readFallbackEnabled()) {
+            runConfigPortal(ssid, hasWifiConfiguration);
+        }
     }
 
     if (WiFi.status() != WL_CONNECTED) {
@@ -282,10 +443,11 @@ static void onWiFiEvent(WiFiEvent_t event) {
 // ---------------------------------------------------------------------------
 
 void initWifi() {
-    // Set hostname before the WiFi stack initialises so the DHCP client
-    // advertises the correct name from the very first connection attempt,
-    // including after auto-reconnects where the connect task never runs.
-    WiFi.setHostname("MiOpenIO");
+    // Set hostname (and any saved static IP config) before the WiFi stack
+    // initialises so the DHCP client advertises the correct name from the
+    // very first connection attempt, including after auto-reconnects where
+    // the connect task never runs.
+    applySavedNetworkSettings();
 
     xTaskCreatePinnedToCore(wifiWorker, "WiFi_Worker", 8192, NULL, 3, &wifiWorkerTaskHandle, 1);
 
