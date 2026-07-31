@@ -43,7 +43,7 @@
     </header>
 
     <main>
-        <div id="devices-page">
+        <div id="devices-page" class="grid">
             <div class="left">
                 <section id="device-list-section">
 
@@ -123,7 +123,24 @@
             </div>
         </div>
         <div id="settings-page" style="display:none;">
-            <div class="left">
+            <div class="settings-tabbar" role="tablist" aria-label="Settings sections">
+                <button class="settings-tab active" type="button" data-settings-tab="integration">
+                    <img class="settings-tab-icon" src="img/paperclip.svg" alt="">
+                    <span data-i18n="section.integration">Integration</span>
+                </button>
+                <button class="settings-tab" type="button" data-settings-tab="network">
+                    <img class="settings-tab-icon" src="img/wifi.svg" alt="">
+                    <span data-i18n="section.network_config">Network</span>
+                </button>
+                <button class="settings-tab" type="button" data-settings-tab="update">
+                    <img class="settings-tab-icon" src="img/system.svg" alt="">
+                    <span data-i18n="section.system">System</span>
+                </button>
+                <span class="settings-tabbar-spacer"></span>
+                <button id="settings-close" class="settings-tab settings-tab-action" type="button" data-i18n="button.close">Close</button>
+            </div>
+            <div class="settings-grid">
+            <section id="integration-settings-section" class="settings-panel active grid" data-settings-panel="integration">
                 <section id="mqtt-settings-section">
                     <div class="title">
                         <h2 data-i18n="section.mqtt_settings">MQTT settings</h2>
@@ -175,6 +192,8 @@
                         <button id="syslog-test" data-i18n="button.syslog_test">Send test</button>
                     </div>
                 </section>
+            </section>
+            <section id="network-settings-section" class="settings-panel grid" data-settings-panel="network" hidden>
                 <section id="wifi-settings-section">
                     <div class="title">
                         <h2 data-i18n="section.wifi_settings">WiFi</h2>
@@ -189,7 +208,7 @@
                         <button id="wifi-config-save" type="button">Save &amp; reboot</button>
                     </div>
                 </section>
-                <section id="network-settings-section">
+                <section id="network-config-section">
                     <div class="title">
                         <h2 data-i18n="section.network_config">Network</h2>
                     </div>
@@ -235,10 +254,8 @@
                         <button id="fallback-save" type="button">Save</button>
                     </div>
                 </section>
-
-            </div>
-
-            <div class="right">
+            </section>
+            <section id="update-backup-section" class="settings-panel grid" data-settings-panel="update" hidden>
                 <section id="update-section">
                     <div class="title">
                         <h2 data-i18n="section.update">Update</h2>
@@ -264,6 +281,7 @@
                         </div>
                     </div>
                 </section>
+            </section>
             </div>
 
 

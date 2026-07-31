@@ -292,6 +292,85 @@ input, select {
   color: var(--color-text);
   opacity: 0.7;
 }
+.settings-tabbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  margin: 10px;
+  padding: 3px;
+  border: 1px solid rgba(90, 110, 140, 0.55);
+  border-radius: 16px;
+  background: var(--color-card);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  color: var(--color-text);
+}
+.settings-tab {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  padding: 0 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.settings-tab-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: block;
+  filter: brightness(0) saturate(100%) invert(43%) sepia(12%) saturate(998%) hue-rotate(178deg) brightness(90%) contrast(88%);
+  opacity: 0.95;
+}
+.settings-tab:hover {
+  background: rgba(90, 110, 140, 0.16);
+}
+.settings-tab.active {
+  background: var(--color-accent2);
+  color: #fff;
+}
+.settings-tab.active .settings-tab-icon {
+  filter: brightness(0) invert(1);
+}
+.settings-tabbar-spacer {
+  flex: 1 1 auto;
+  min-width: 12px;
+}
+.settings-tab-action {
+  font-weight: 600;
+}
+#settings-close {
+  border-right: 0;
+}
+.settings-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin: 0 10px 10px;
+}
+.settings-panel {
+    display: block;
+}
+.settings-panel[hidden] {
+  display: none;
+}
+#network-settings-section {
+  gap: 10px;
+  display: grid;
+}
+#network-settings-section[hidden] {
+  display: none;
+}
 #status-messages {
     min-height: 200px;
     border: 1px solid var(--color7);
@@ -420,8 +499,13 @@ header h1 {
 .btn.danger { background:#d9534f; color:#fff; }
 .btn.ghost  { background:#eee; }
 @media (min-width: 1280px) {
-    main > div, .card-popup {
+    .card-popup {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+        display: grid;
+        gap: 10px;
     }
     header h1 {
       display: block;
@@ -535,6 +619,21 @@ header h1 {
     }
     #toggle-theme {
       width: 44px;
+    }
+    .settings-tabbar {
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-radius: 16px;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+    }
+    .settings-tabbar-spacer {
+      flex: 0 0 8px;
+      min-width: 8px;
+    }
+    .settings-tab {
+      flex: 0 0 auto;
+      padding: 0 18px;
     }
     .send-messages {
       grid-template-columns: 1fr;

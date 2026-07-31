@@ -442,7 +442,48 @@
         }
     }
 
+    function initSettingsTabs() {
+        const tabs = Array.from(document.querySelectorAll("[data-settings-tab]"));
+        const panels = Array.from(document.querySelectorAll("[data-settings-panel]"));
+
+        function activate(name) {
+            tabs.forEach(function (tab) {
+                tab.classList.toggle("active", tab.dataset.settingsTab === name);
+            });
+            panels.forEach(function (panel) {
+                const isActive = panel.dataset.settingsPanel === name;
+                panel.classList.toggle("active", isActive);
+                panel.hidden = !isActive;
+            });
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                activate(tab.dataset.settingsTab);
+            });
+        });
+
+        const activeTab = tabs.find(function (tab) {
+            return tab.classList.contains("active");
+        });
+        activate(activeTab ? activeTab.dataset.settingsTab : "integration");
+    }
+
+    function initSettingsActions() {
+        const closeButton = document.getElementById("settings-close");
+        if (closeButton) {
+            closeButton.addEventListener("click", function () {
+                if (typeof window.showPage === "function") {
+                    window.showPage("devices");
+                }
+            });
+        }
+    }
+
     function init(app) {
+        initSettingsTabs();
+        initSettingsActions();
+
         app.loadLastAddress = function () {
             return loadLastAddress(app);
         };
