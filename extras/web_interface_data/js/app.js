@@ -85,6 +85,28 @@
             mqttServerInput: document.getElementById("mqtt-server"),
             mqttUpdateButton: document.getElementById("mqtt-update"),
             mqttUserInput: document.getElementById("mqtt-user"),
+            wifiSsidInput: document.getElementById("wifi-ssid"),
+            wifiPasswordInput: document.getElementById("wifi-password"),
+            wifiScanButton: document.getElementById("wifi-scan-btn"),
+            wifiScanResults: document.getElementById("wifi-scan-results"),
+            wifiConfigSaveButton: document.getElementById("wifi-config-save"),
+            wifiConfigStatus: document.getElementById("wifi-config-status"),
+            networkHostnameInput: document.getElementById("net-hostname"),
+            networkDhcpInput: document.getElementById("net-dhcp"),
+            networkIpInput: document.getElementById("net-ip"),
+            networkMaskInput: document.getElementById("net-mask"),
+            networkGatewayInput: document.getElementById("net-gateway"),
+            networkDns1Input: document.getElementById("net-dns1"),
+            networkDns2Input: document.getElementById("net-dns2"),
+            networkSntpInput: document.getElementById("net-sntp"),
+            networkStatus: document.getElementById("network-status"),
+            networkSaveButton: document.getElementById("network-save"),
+            fallbackEnabledInput: document.getElementById("fallback-enabled"),
+            fallbackRetriesBootInput: document.getElementById("fallback-retries-boot"),
+            fallbackRetriesRunningInput: document.getElementById("fallback-retries-running"),
+            fallbackTimeoutInput: document.getElementById("fallback-timeout"),
+            fallbackStatus: document.getElementById("fallback-status"),
+            fallbackSaveButton: document.getElementById("fallback-save"),
             displayEnabledInput: document.getElementById("display-enabled"),
             displayUpdateButton: document.getElementById("display-update"),
             displayStatus: document.getElementById("display-status"),
@@ -238,6 +260,18 @@
         if (app.elements.mqttUpdateButton) {
             app.elements.mqttUpdateButton.addEventListener("click", app.updateMqttConfig);
         }
+        if (app.elements.wifiScanButton) {
+            app.elements.wifiScanButton.addEventListener("click", app.scanWifiNetworks);
+        }
+        if (app.elements.wifiConfigSaveButton) {
+            app.elements.wifiConfigSaveButton.addEventListener("click", app.saveWifiConfig);
+        }
+        if (app.elements.networkSaveButton) {
+            app.elements.networkSaveButton.addEventListener("click", app.saveNetworkConfig);
+        }
+        if (app.elements.fallbackSaveButton) {
+            app.elements.fallbackSaveButton.addEventListener("click", app.saveFallbackConfig);
+        }
         if (app.elements.displayUpdateButton) {
             app.elements.displayUpdateButton.addEventListener("click", app.updateDisplayConfig);
         }
@@ -323,6 +357,9 @@
         app.logStatus("System started");
         app.logStatus("Loading devices...");
         app.loadMqttConfig();
+        app.loadWifiConfig();
+        app.loadNetworkConfig();
+        app.loadFallbackConfig();
         app.loadDisplayConfig();
         app.loadSyslogConfig();
         app.fetchAndDisplayDevices();

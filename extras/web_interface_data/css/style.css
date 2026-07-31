@@ -548,3 +548,21 @@ header h1 {
       white-space: nowrap;
     }
 }
+#wifi-scan-results {
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.wifi-scan-result {
+  width: 100%;
+  text-align: left;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-text);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+.wifi-scan-result:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+.wifi-scan-modal-list {
+  display: grid;
+  gap: 8px;
+}

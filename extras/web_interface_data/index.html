@@ -175,6 +175,66 @@
                         <button id="syslog-test" data-i18n="button.syslog_test">Send test</button>
                     </div>
                 </section>
+                <section id="wifi-settings-section">
+                    <div class="title">
+                        <h2 data-i18n="section.wifi_settings">WiFi</h2>
+                    </div>
+                    <div class="card">
+                        <p id="wifi-config-status" class="setting-status"></p>
+                        <label for="wifi-ssid">SSID:</label>
+                        <input type="text" id="wifi-ssid" placeholder="Network name">
+                        <label for="wifi-password">Password:</label>
+                        <input type="password" id="wifi-password" placeholder="Leave blank to keep current password">
+                        <button id="wifi-scan-btn" type="button">Scan networks</button>
+                        <button id="wifi-config-save" type="button">Save &amp; reboot</button>
+                    </div>
+                </section>
+                <section id="network-settings-section">
+                    <div class="title">
+                        <h2 data-i18n="section.network_config">Network</h2>
+                    </div>
+                    <div class="card">
+                        <p id="network-status" class="setting-status"></p>
+                        <label for="net-hostname">Hostname:</label>
+                        <input type="text" id="net-hostname" placeholder="MiOpenIO">
+                        <label class="setting-toggle" for="net-dhcp">
+                            <input type="checkbox" id="net-dhcp" checked>
+                            <span>Use DHCP</span>
+                        </label>
+                        <label for="net-ip">Static IP:</label>
+                        <input type="text" id="net-ip" placeholder="192.168.1.50">
+                        <label for="net-mask">Subnet mask:</label>
+                        <input type="text" id="net-mask" placeholder="255.255.255.0">
+                        <label for="net-gateway">Gateway:</label>
+                        <input type="text" id="net-gateway" placeholder="192.168.1.1">
+                        <label for="net-dns1">DNS 1:</label>
+                        <input type="text" id="net-dns1" placeholder="Optional">
+                        <label for="net-dns2">DNS 2:</label>
+                        <input type="text" id="net-dns2" placeholder="Optional">
+                        <label for="net-sntp">SNTP server:</label>
+                        <input type="text" id="net-sntp" placeholder="pool.ntp.org">
+                        <button id="network-save" type="button">Save &amp; reboot</button>
+                    </div>
+                </section>
+                <section id="fallback-settings-section">
+                    <div class="title">
+                        <h2>Fallback AP</h2>
+                    </div>
+                    <div class="card">
+                        <p id="fallback-status" class="setting-status"></p>
+                        <label class="setting-toggle" for="fallback-enabled">
+                            <input type="checkbox" id="fallback-enabled" checked>
+                            <span>Open a fallback AP if WiFi can't be reached</span>
+                        </label>
+                        <label for="fallback-retries-boot">Boot retries:</label>
+                        <input type="number" id="fallback-retries-boot" min="1" max="20" placeholder="3">
+                        <label for="fallback-retries-running">Reconnect retries:</label>
+                        <input type="number" id="fallback-retries-running" min="0" max="50" placeholder="3">
+                        <label for="fallback-timeout">Portal timeout (seconds, 0 = no timeout):</label>
+                        <input type="number" id="fallback-timeout" min="0" max="3600" placeholder="600">
+                        <button id="fallback-save" type="button">Save</button>
+                    </div>
+                </section>
 
             </div>
 
