@@ -428,17 +428,29 @@
         const file = input.files[0];
         if (!file) {
             app.logStatus(missingMessage, true);
+            if (typeof window.showToast === "function") {
+                window.showToast(missingMessage, true);
+            }
             return;
         }
 
         try {
             const result = await window.MiOpenApi.uploadFile(url, file);
-            app.logStatus(result.message || successMessage);
+            const message = result.message || successMessage;
+            app.logStatus(message);
+            if (typeof window.showToast === "function") {
+                window.showToast(message);
+            }
+            input.value = "";
             if (refreshFn) {
                 await refreshFn();
             }
         } catch (error) {
-            app.logStatus(error.message || successMessage, true);
+            const message = error.message || successMessage;
+            app.logStatus(message, true);
+            if (typeof window.showToast === "function") {
+                window.showToast(message, true);
+            }
         }
     }
 
