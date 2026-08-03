@@ -46,6 +46,237 @@
         }
     }
 
+    function setWifiStatus(app, message, isError) {
+        if (app.elements.wifiConfigStatus) {
+            app.elements.wifiConfigStatus.textContent = message || "";
+            app.elements.wifiConfigStatus.classList.toggle("error", !!isError);
+        }
+        if (message && typeof window.showToast === "function") {
+            window.showToast(message, isError);
+        }
+    }
+
+    async function loadWifiConfig(app) {
+        if (!app.elements.wifiSsidInput) {
+            return;
+        }
+        try {
+            const config = await window.MiOpenApi.requestJson("/api/wifi");
+            app.elements.wifiSsidInput.value = config.ssid || config.currentSsid || "";
+            if (app.elements.wifiPasswordInput) {
+                app.elements.wifiPasswordInput.value = "";
+            }
+            setWifiStatus(app, config.connected ? "WiFi connected" : "WiFi not connected", !config.connected);
+        } catch (error) {
+            console.error("Error fetching WiFi config", error);
+            setWifiStatus(app, error.message || "WiFi settings load failed", true);
+        }
+    }
+
+    function openWifiScanModal(app, message) {
+        if (typeof app.openPopup === "function") {
+            app.openPopup("WiFi networks", "", [message || "Scanning WiFi networks..."], [], {
+                showSave: false,
+                btnShowCancel: true
+            });
+        }
+    }
+
+    function renderWifiScanResults(app, scanResult) {
+        const networks = Array.isArray(scanResult) ? scanResult : (scanResult && Array.isArray(scanResult.networks) ? scanResult.networks : []);
+        const validNetworks = networks.filter(function (network) { return network && network.ssid; });
+
+        if (app.elements.wifiScanResults) {
+            app.elements.wifiScanResults.style.display = "none";
+            app.elements.wifiScanResults.textContent = "";
+        }
+
+        const content = document.getElementById("popup-content");
+        if (!content) {
+            return;
+        }
+        content.textContent = "";
+
+        if (validNetworks.length === 0) {
+            const message = document.createElement("p");
+            message.textContent = "No WiFi networks found";
+            content.appendChild(message);
+            setWifiStatus(app, "No WiFi networks found", true);
+            return;
+        }
+
+        const list = document.createElement("div");
+        list.className = "wifi-scan-modal-list";
+        validNetworks.forEach(function (network) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "wifi-scan-result";
+            button.textContent = network.ssid + " (" + network.rssi + " dBm" + (network.secure ? ", secure" : ", open") + ")";
+            button.addEventListener("click", function () {
+                app.elements.wifiSsidInput.value = network.ssid;
+                if (typeof app.closePopup === "function") {
+                    app.closePopup();
+                }
+                if (app.elements.wifiPasswordInput) {
+                    app.elements.wifiPasswordInput.focus();
+                }
+            });
+            list.appendChild(button);
+        });
+        content.appendChild(list);
+    }
+
+    async function scanWifiNetworks(app) {
+        if (!app.elements.wifiScanButton) {
+            return;
+        }
+        app.elements.wifiScanButton.disabled = true;
+        openWifiScanModal(app, "Scanning WiFi networks...");
+        setWifiStatus(app, "Scanning WiFi networks...");
+        try {
+            const scanResult = await window.MiOpenApi.requestJson("/api/wifi-scan");
+            renderWifiScanResults(app, scanResult);
+            const networks = Array.isArray(scanResult) ? scanResult : (scanResult && Array.isArray(scanResult.networks) ? scanResult.networks : []);
+            if (networks.length > 0) {
+                setWifiStatus(app, networks.length + " WiFi networks found");
+            }
+        } catch (error) {
+            console.error("Error scanning WiFi networks", error);
+            setWifiStatus(app, error.message || "WiFi scan failed", true);
+        } finally {
+            app.elements.wifiScanButton.disabled = false;
+        }
+    }
+
+    async function saveWifiConfig(app) {
+        if (!app.elements.wifiSsidInput || !app.elements.wifiConfigSaveButton) {
+            return;
+        }
+        const ssid = app.elements.wifiSsidInput.value.trim();
+        if (!ssid) {
+            setWifiStatus(app, "SSID is required", true);
+            return;
+        }
+
+        app.elements.wifiConfigSaveButton.disabled = true;
+        setWifiStatus(app, "Saving WiFi settings...");
+        try {
+            const result = await window.MiOpenApi.postJson("/api/wifi", {
+                ssid: ssid,
+                password: app.elements.wifiPasswordInput ? app.elements.wifiPasswordInput.value : ""
+            });
+            setWifiStatus(app, result.message || "WiFi settings saved, rebooting");
+        } catch (error) {
+            console.error("Error saving WiFi settings", error);
+            setWifiStatus(app, error.message || "Saving WiFi settings failed", true);
+            app.elements.wifiConfigSaveButton.disabled = false;
+        }
+    }
+
+    function setNetworkStatus(app, message, isError) {
+        if (!app.elements.networkStatus) {
+            return;
+        }
+        app.elements.networkStatus.textContent = message || "";
+        app.elements.networkStatus.classList.toggle("error", !!isError);
+        if (message && typeof window.showToast === "function") {
+            window.showToast(message, isError);
+        }
+    }
+
+    async function loadNetworkConfig(app) {
+        if (!app.elements.networkHostnameInput) {
+            return;
+        }
+        try {
+            const config = await window.MiOpenApi.requestJson("/api/network");
+            app.elements.networkHostnameInput.value = config.hostname || "";
+            app.elements.networkDhcpInput.checked = config.dhcp !== false;
+            app.elements.networkIpInput.value = config.ip || "";
+            app.elements.networkMaskInput.value = config.mask || "";
+            app.elements.networkGatewayInput.value = config.gateway || "";
+            app.elements.networkDns1Input.value = config.dns1 || "";
+            app.elements.networkDns2Input.value = config.dns2 || "";
+            app.elements.networkSntpInput.value = config.sntp || "";
+        } catch (error) {
+            console.error("Error fetching network config", error);
+            setNetworkStatus(app, error.message || "Network config load failed", true);
+        }
+    }
+
+    async function saveNetworkConfig(app) {
+        if (!app.elements.networkSaveButton || !app.elements.networkHostnameInput) {
+            return;
+        }
+        app.elements.networkSaveButton.disabled = true;
+        setNetworkStatus(app, "Saving network config...");
+        try {
+            const result = await window.MiOpenApi.postJson("/api/network", {
+                hostname: app.elements.networkHostnameInput.value,
+                dhcp: app.elements.networkDhcpInput.checked,
+                ip: app.elements.networkIpInput.value,
+                mask: app.elements.networkMaskInput.value,
+                gateway: app.elements.networkGatewayInput.value,
+                dns1: app.elements.networkDns1Input.value,
+                dns2: app.elements.networkDns2Input.value,
+                sntp: app.elements.networkSntpInput.value
+            });
+            setNetworkStatus(app, result.message || "Network config saved, rebooting");
+        } catch (error) {
+            console.error("Error saving network config", error);
+            setNetworkStatus(app, error.message || "Saving network config failed", true);
+            app.elements.networkSaveButton.disabled = false;
+        }
+    }
+
+    function setFallbackStatus(app, message, isError) {
+        if (!app.elements.fallbackStatus) {
+            return;
+        }
+        app.elements.fallbackStatus.textContent = message || "";
+        app.elements.fallbackStatus.classList.toggle("error", !!isError);
+        if (message && typeof window.showToast === "function") {
+            window.showToast(message, isError);
+        }
+    }
+
+    async function loadFallbackConfig(app) {
+        if (!app.elements.fallbackEnabledInput) {
+            return;
+        }
+        try {
+            const config = await window.MiOpenApi.requestJson("/api/fallback");
+            app.elements.fallbackEnabledInput.checked = config.enabled !== false;
+            app.elements.fallbackRetriesBootInput.value = config.retriesBoot || 3;
+            app.elements.fallbackRetriesRunningInput.value = config.retriesRunning || 3;
+            app.elements.fallbackTimeoutInput.value = config.timeout || 600;
+        } catch (error) {
+            console.error("Error fetching fallback config", error);
+            setFallbackStatus(app, error.message || "Fallback AP load failed", true);
+        }
+    }
+
+    async function saveFallbackConfig(app) {
+        if (!app.elements.fallbackSaveButton) {
+            return;
+        }
+        app.elements.fallbackSaveButton.disabled = true;
+        try {
+            const result = await window.MiOpenApi.postJson("/api/fallback", {
+                enabled: app.elements.fallbackEnabledInput.checked,
+                retriesBoot: Number(app.elements.fallbackRetriesBootInput.value || 3),
+                retriesRunning: Number(app.elements.fallbackRetriesRunningInput.value || 3),
+                timeout: Number(app.elements.fallbackTimeoutInput.value || 600)
+            });
+            setFallbackStatus(app, result.message || "Fallback AP settings saved");
+        } catch (error) {
+            console.error("Error saving fallback config", error);
+            setFallbackStatus(app, error.message || "Fallback AP save failed", true);
+        } finally {
+            app.elements.fallbackSaveButton.disabled = false;
+        }
+    }
+
     async function loadDisplayConfig(app) {
         if (!app.elements.displayEnabledInput) {
             return;
@@ -197,21 +428,74 @@
         const file = input.files[0];
         if (!file) {
             app.logStatus(missingMessage, true);
+            if (typeof window.showToast === "function") {
+                window.showToast(missingMessage, true);
+            }
             return;
         }
 
         try {
             const result = await window.MiOpenApi.uploadFile(url, file);
-            app.logStatus(result.message || successMessage);
+            const message = result.message || successMessage;
+            app.logStatus(message);
+            if (typeof window.showToast === "function") {
+                window.showToast(message);
+            }
+            input.value = "";
             if (refreshFn) {
                 await refreshFn();
             }
         } catch (error) {
-            app.logStatus(error.message || successMessage, true);
+            const message = error.message || successMessage;
+            app.logStatus(message, true);
+            if (typeof window.showToast === "function") {
+                window.showToast(message, true);
+            }
+        }
+    }
+
+    function initSettingsTabs() {
+        const tabs = Array.from(document.querySelectorAll("[data-settings-tab]"));
+        const panels = Array.from(document.querySelectorAll("[data-settings-panel]"));
+
+        function activate(name) {
+            tabs.forEach(function (tab) {
+                tab.classList.toggle("active", tab.dataset.settingsTab === name);
+            });
+            panels.forEach(function (panel) {
+                const isActive = panel.dataset.settingsPanel === name;
+                panel.classList.toggle("active", isActive);
+                panel.hidden = !isActive;
+            });
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                activate(tab.dataset.settingsTab);
+            });
+        });
+
+        const activeTab = tabs.find(function (tab) {
+            return tab.classList.contains("active");
+        });
+        activate(activeTab ? activeTab.dataset.settingsTab : "integration");
+    }
+
+    function initSettingsActions() {
+        const closeButton = document.getElementById("settings-close");
+        if (closeButton) {
+            closeButton.addEventListener("click", function () {
+                if (typeof window.showPage === "function") {
+                    window.showPage("devices");
+                }
+            });
         }
     }
 
     function init(app) {
+        initSettingsTabs();
+        initSettingsActions();
+
         app.loadLastAddress = function () {
             return loadLastAddress(app);
         };
@@ -220,6 +504,27 @@
         };
         app.updateMqttConfig = function () {
             return updateMqttConfig(app);
+        };
+        app.loadWifiConfig = function () {
+            return loadWifiConfig(app);
+        };
+        app.scanWifiNetworks = function () {
+            return scanWifiNetworks(app);
+        };
+        app.saveWifiConfig = function () {
+            return saveWifiConfig(app);
+        };
+        app.loadNetworkConfig = function () {
+            return loadNetworkConfig(app);
+        };
+        app.saveNetworkConfig = function () {
+            return saveNetworkConfig(app);
+        };
+        app.loadFallbackConfig = function () {
+            return loadFallbackConfig(app);
+        };
+        app.saveFallbackConfig = function () {
+            return saveFallbackConfig(app);
         };
         app.loadDisplayConfig = function () {
             return loadDisplayConfig(app);

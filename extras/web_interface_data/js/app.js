@@ -85,6 +85,28 @@
             mqttServerInput: document.getElementById("mqtt-server"),
             mqttUpdateButton: document.getElementById("mqtt-update"),
             mqttUserInput: document.getElementById("mqtt-user"),
+            wifiSsidInput: document.getElementById("wifi-ssid"),
+            wifiPasswordInput: document.getElementById("wifi-password"),
+            wifiScanButton: document.getElementById("wifi-scan-btn"),
+            wifiScanResults: document.getElementById("wifi-scan-results"),
+            wifiConfigSaveButton: document.getElementById("wifi-config-save"),
+            wifiConfigStatus: document.getElementById("wifi-config-status"),
+            networkHostnameInput: document.getElementById("net-hostname"),
+            networkDhcpInput: document.getElementById("net-dhcp"),
+            networkIpInput: document.getElementById("net-ip"),
+            networkMaskInput: document.getElementById("net-mask"),
+            networkGatewayInput: document.getElementById("net-gateway"),
+            networkDns1Input: document.getElementById("net-dns1"),
+            networkDns2Input: document.getElementById("net-dns2"),
+            networkSntpInput: document.getElementById("net-sntp"),
+            networkStatus: document.getElementById("network-status"),
+            networkSaveButton: document.getElementById("network-save"),
+            fallbackEnabledInput: document.getElementById("fallback-enabled"),
+            fallbackRetriesBootInput: document.getElementById("fallback-retries-boot"),
+            fallbackRetriesRunningInput: document.getElementById("fallback-retries-running"),
+            fallbackTimeoutInput: document.getElementById("fallback-timeout"),
+            fallbackStatus: document.getElementById("fallback-status"),
+            fallbackSaveButton: document.getElementById("fallback-save"),
             displayEnabledInput: document.getElementById("display-enabled"),
             displayUpdateButton: document.getElementById("display-update"),
             displayStatus: document.getElementById("display-status"),
@@ -115,6 +137,17 @@
     }
 
     function logStatus(app, message, isError) {
+        // Some actions arrive twice by design: once echoed back in the
+        // direct API response, once broadcast to all clients over the
+        // WebSocket. Drop an exact repeat that lands within 2s of the last
+        // one instead of showing it twice.
+        const now = Date.now();
+        if (message === app.state.lastLogMessage && now - app.state.lastLogMessageMs < 2000) {
+            return;
+        }
+        app.state.lastLogMessage = message;
+        app.state.lastLogMessageMs = now;
+
         const logEntry = document.createElement("p");
         logEntry.textContent = message;
         if (isError) {
@@ -201,6 +234,7 @@
     function initWebSocket(app) {
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         const ws = new WebSocket(wsScheme + "://" + window.location.host + "/ws");
+        app.state.ws = ws;
 
         ws.onmessage = function (event) {
             const data = JSON.parse(event.data);
@@ -216,14 +250,18 @@
         };
 
         ws.onopen = function () {
-            app.logStatus("WebSocket connected");
+            app.state.wsConnected = true;
         };
 
         ws.onclose = function () {
-            app.logStatus("WebSocket disconnected", true);
+            app.state.wsConnected = false;
+            if (!app.state.wsReconnectTimer) {
+                app.state.wsReconnectTimer = setTimeout(function () {
+                    app.state.wsReconnectTimer = null;
+                    initWebSocket(app);
+                }, 2000);
+            }
         };
-
-        app.state.ws = ws;
     }
 
     function bindEvents(app) {
@@ -232,6 +270,18 @@
         }
         if (app.elements.mqttUpdateButton) {
             app.elements.mqttUpdateButton.addEventListener("click", app.updateMqttConfig);
+        }
+        if (app.elements.wifiScanButton) {
+            app.elements.wifiScanButton.addEventListener("click", app.scanWifiNetworks);
+        }
+        if (app.elements.wifiConfigSaveButton) {
+            app.elements.wifiConfigSaveButton.addEventListener("click", app.saveWifiConfig);
+        }
+        if (app.elements.networkSaveButton) {
+            app.elements.networkSaveButton.addEventListener("click", app.saveNetworkConfig);
+        }
+        if (app.elements.fallbackSaveButton) {
+            app.elements.fallbackSaveButton.addEventListener("click", app.saveFallbackConfig);
         }
         if (app.elements.displayUpdateButton) {
             app.elements.displayUpdateButton.addEventListener("click", app.updateDisplayConfig);
@@ -287,7 +337,9 @@
             },
             state: {
                 devicesCache: [],
-                ws: null
+                ws: null,
+                lastLogMessage: null,
+                lastLogMessageMs: 0
             }
         };
 
@@ -318,6 +370,9 @@
         app.logStatus("System started");
         app.logStatus("Loading devices...");
         app.loadMqttConfig();
+        app.loadWifiConfig();
+        app.loadNetworkConfig();
+        app.loadFallbackConfig();
         app.loadDisplayConfig();
         app.loadSyslogConfig();
         app.fetchAndDisplayDevices();

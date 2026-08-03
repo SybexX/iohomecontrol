@@ -13,6 +13,10 @@
   "section.mqtt_settings": "MQTT settings",
   "section.display_settings": "Display",
   "section.syslog_settings": "Syslog settings",
+  "section.wifi_settings": "WiFi",
+  "section.network_config": "Network",
+  "section.integration": "Integration",
+  "section.system": "System",
   "section.update_backup": "Update/backup",
   "section.update": "Update",
 

@@ -13,10 +13,24 @@
     <header>
         <img src="img/logo.png" alt="MiOpen.IO Logo" class="logo">
         <h1 data-i18n="header.title">Device Control</h1>
-        <nav>
-            <a onclick="showPage('devices')" class="items" data-i18n="nav.devices">Devices</a>
-            <a onclick="showPage('help')" class="items" data-i18n="nav.help">Log</a>
-            <a onclick="showPage('settings')" class="items" data-i18n="nav.settings">Settings</a>
+        <button id="menu-toggle" aria-label="Open menu" aria-expanded="false" type="button">
+            <span></span><span></span><span></span>
+        </button>
+        <div id="menu-backdrop"></div>
+        <nav id="main-menu">
+            <button id="menu-close" aria-label="Close menu" type="button">&times;</button>
+            <a onclick="showPage('devices')" class="items nav-link">
+                <img class="nav-icon" src="img/devices.svg" alt="">
+                <span data-i18n="nav.devices">Devices</span>
+            </a>
+            <a onclick="showPage('help')" class="items nav-link">
+                <img class="nav-icon" src="img/help.svg" alt="">
+                <span data-i18n="nav.help">Log</span>
+            </a>
+            <a onclick="showPage('settings')" class="items nav-link">
+                <img class="nav-icon" src="img/settings.svg" alt="">
+                <span data-i18n="nav.settings">Settings</span>
+            </a>
             <select class="items" id="lang" onchange="setLang(this.value)">
                 <option value="nl">NL</option>
                 <option value="en">EN</option>
@@ -25,11 +39,11 @@
             </select>
             <a class="items"id="toggle-theme"></a>
         </nav>
-        
+
     </header>
 
     <main>
-        <div id="devices-page">
+        <div id="devices-page" class="grid">
             <div class="left">
                 <section id="device-list-section">
 
@@ -109,7 +123,24 @@
             </div>
         </div>
         <div id="settings-page" style="display:none;">
-            <div class="left">
+            <div class="settings-tabbar" role="tablist" aria-label="Settings sections">
+                <button class="settings-tab active" type="button" data-settings-tab="integration">
+                    <img class="settings-tab-icon" src="img/paperclip.svg" alt="">
+                    <span data-i18n="section.integration">Integration</span>
+                </button>
+                <button class="settings-tab" type="button" data-settings-tab="network">
+                    <img class="settings-tab-icon" src="img/wifi.svg" alt="">
+                    <span data-i18n="section.network_config">Network</span>
+                </button>
+                <button class="settings-tab" type="button" data-settings-tab="update">
+                    <img class="settings-tab-icon" src="img/system.svg" alt="">
+                    <span data-i18n="section.system">System</span>
+                </button>
+                <span class="settings-tabbar-spacer"></span>
+                <button id="settings-close" class="settings-tab settings-tab-action" type="button" data-i18n="button.close">Close</button>
+            </div>
+            <div class="settings-grid">
+            <section id="integration-settings-section" class="settings-panel active grid" data-settings-panel="integration">
                 <section id="mqtt-settings-section">
                     <div class="title">
                         <h2 data-i18n="section.mqtt_settings">MQTT settings</h2>
@@ -161,10 +192,70 @@
                         <button id="syslog-test" data-i18n="button.syslog_test">Send test</button>
                     </div>
                 </section>
-
-            </div>
-
-            <div class="right">
+            </section>
+            <section id="network-settings-section" class="settings-panel grid" data-settings-panel="network" hidden>
+                <section id="wifi-settings-section">
+                    <div class="title">
+                        <h2 data-i18n="section.wifi_settings">WiFi</h2>
+                    </div>
+                    <div class="card">
+                        <p id="wifi-config-status" class="setting-status"></p>
+                        <label for="wifi-ssid">SSID:</label>
+                        <input type="text" id="wifi-ssid" placeholder="Network name">
+                        <label for="wifi-password">Password:</label>
+                        <input type="password" id="wifi-password" placeholder="Leave blank to keep current password">
+                        <button id="wifi-scan-btn" type="button">Scan networks</button>
+                        <button id="wifi-config-save" type="button">Save &amp; reboot</button>
+                    </div>
+                </section>
+                <section id="network-config-section">
+                    <div class="title">
+                        <h2 data-i18n="section.network_config">Network</h2>
+                    </div>
+                    <div class="card">
+                        <p id="network-status" class="setting-status"></p>
+                        <label for="net-hostname">Hostname:</label>
+                        <input type="text" id="net-hostname" placeholder="MiOpenIO">
+                        <label class="setting-toggle" for="net-dhcp">
+                            <input type="checkbox" id="net-dhcp" checked>
+                            <span>Use DHCP</span>
+                        </label>
+                        <label for="net-ip">Static IP:</label>
+                        <input type="text" id="net-ip" placeholder="192.168.1.50">
+                        <label for="net-mask">Subnet mask:</label>
+                        <input type="text" id="net-mask" placeholder="255.255.255.0">
+                        <label for="net-gateway">Gateway:</label>
+                        <input type="text" id="net-gateway" placeholder="192.168.1.1">
+                        <label for="net-dns1">DNS 1:</label>
+                        <input type="text" id="net-dns1" placeholder="Optional">
+                        <label for="net-dns2">DNS 2:</label>
+                        <input type="text" id="net-dns2" placeholder="Optional">
+                        <label for="net-sntp">SNTP server:</label>
+                        <input type="text" id="net-sntp" placeholder="pool.ntp.org">
+                        <button id="network-save" type="button">Save &amp; reboot</button>
+                    </div>
+                </section>
+                <section id="fallback-settings-section">
+                    <div class="title">
+                        <h2>Fallback AP</h2>
+                    </div>
+                    <div class="card">
+                        <p id="fallback-status" class="setting-status"></p>
+                        <label class="setting-toggle" for="fallback-enabled">
+                            <input type="checkbox" id="fallback-enabled" checked>
+                            <span>Open a fallback AP if WiFi can't be reached</span>
+                        </label>
+                        <label for="fallback-retries-boot">Boot retries:</label>
+                        <input type="number" id="fallback-retries-boot" min="1" max="20" placeholder="3">
+                        <label for="fallback-retries-running">Reconnect retries:</label>
+                        <input type="number" id="fallback-retries-running" min="0" max="50" placeholder="3">
+                        <label for="fallback-timeout">Portal timeout (seconds, 0 = no timeout):</label>
+                        <input type="number" id="fallback-timeout" min="0" max="3600" placeholder="600">
+                        <button id="fallback-save" type="button">Save</button>
+                    </div>
+                </section>
+            </section>
+            <section id="update-backup-section" class="settings-panel grid" data-settings-panel="update" hidden>
                 <section id="update-section">
                     <div class="title">
                         <h2 data-i18n="section.update">Update</h2>
@@ -190,6 +281,7 @@
                         </div>
                     </div>
                 </section>
+            </section>
             </div>
 
 
@@ -246,19 +338,14 @@
         </div>
     </div>
     <script src="js/i18n.js?v=20260526b"></script>
+    <script src="js/toast.js?v=20260731a"></script>
     <script src="js/api.js?v=20260526b"></script>
     <script src="js/popup.js?v=20260526b"></script>
     <script src="js/devices.js?v=20260526b"></script>
     <script src="js/remotes.js?v=20260526b"></script>
     <script src="js/settings.js?v=20260526b"></script>
     <script src="js/app.js?v=20260526b"></script>
-    <script>
-        function showPage(page) {
-            document.getElementById('devices-page').style.display = (page === 'devices') ? 'grid' : 'none';
-            document.getElementById('settings-page').style.display = (page === 'settings') ? 'grid' : 'none';
-            document.getElementById('help-page').style.display = (page === 'help') ? 'grid' : 'none';
-        }
-    </script>
+    <script src="js/menu.js?v=20260731a"></script>
 </body>
 
 </html>

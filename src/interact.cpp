@@ -308,7 +308,8 @@ void createCommands() {
     Cmd::addHandler((char *) "cat", (char *) "Print file content", [](Tokens *cmd)-> void { cat(cmd->at(1).c_str()); });
     Cmd::addHandler((char *) "rm", (char *) "Remove file", [](Tokens *cmd)-> void { rm(cmd->at(1).c_str()); });
     Cmd::addHandler((char *) "lastAddr", (char *) "Show last received address", [](Tokens *cmd)-> void {
-        Serial.println(bytesToHexString(IOHC::lastFromAddress, sizeof(IOHC::lastFromAddress)).c_str());
+        const IOHC::Address3 addr = IOHC::lastFromAddress.load();
+        Serial.println(bytesToHexString(addr.b, sizeof(addr.b)).c_str());
     });
 #if defined(MQTT)
     Cmd::addHandler((char *) "mqttIp", (char *) "Set MQTT server IP", [](Tokens *cmd)-> void {
