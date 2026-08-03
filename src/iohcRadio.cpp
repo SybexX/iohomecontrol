@@ -582,6 +582,16 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
 
 #endif
 
+        // A spurious wakeup (RF noise triggering the preamble detector with
+        // no real payload following, or a CRC/decode failure on the CC1101
+        // path) leaves buffer_length below a valid header size. Drop it
+        // here instead of logging/dispatching a phantom all-zero packet.
+        if (iohc->buffer_length < sizeof(_header)) {
+            delete iohc;
+            digitalWrite(RX_LED, false);
+            return true;
+        }
+
         // Radio::clearFlags();
         iohc->decode(true); //stats);
         addLogMessage(String(iohc->decodeToString(true).c_str()));
