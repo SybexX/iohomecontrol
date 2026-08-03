@@ -36,6 +36,27 @@ namespace IOHC {
     iohcRemote1W* iohcRemote1W::_iohcRemote1W = nullptr;
     static constexpr uint32_t DEFAULT_TRAVEL_TIME_SEC = 10;
 
+    // Serializes save() against itself: it's called both from command
+    // handlers (web/MQTT/serial task) and from positionTaskLoop (its own
+    // dedicated task, every 1s while a device is moving), with no other
+    // coordination between them. Without this, two overlapping calls can
+    // race on the same /1W.json.tmp file (observed live: "Cannot rename;
+    // src is open").
+    static SemaphoreHandle_t saveMutex = xSemaphoreCreateMutex();
+
+    // save() has several early-return failure paths; a scope guard ensures
+    // the mutex is released on every one of them without having to pair
+    // xSemaphoreGive with each individual return.
+    class MutexGuard {
+    public:
+        explicit MutexGuard(SemaphoreHandle_t m) : mutex(m) { xSemaphoreTake(mutex, portMAX_DELAY); }
+        ~MutexGuard() { xSemaphoreGive(mutex); }
+        MutexGuard(const MutexGuard &) = delete;
+        MutexGuard &operator=(const MutexGuard &) = delete;
+    private:
+        SemaphoreHandle_t mutex;
+    };
+
     static void positionTaskLoop(void *arg) {
         auto *inst = static_cast<iohcRemote1W *>(arg);
         while (true) {
@@ -764,6 +785,7 @@ Every 9 -> 0x20 12:41:28.171 > (23) 1W S 1 E 1  FROM B60D1A TO 00003F CMD 20 <  
         return true;
     }
    bool iohcRemote1W::save() {
+        MutexGuard guard(saveMutex);
         if (remotes.empty()) {
             Serial.printf("Refusing to save empty 1W remote list to %s\n", IOHC_1W_REMOTE);
             return false;
