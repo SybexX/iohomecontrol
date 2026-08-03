@@ -137,6 +137,17 @@
     }
 
     function logStatus(app, message, isError) {
+        // Some actions arrive twice by design: once echoed back in the
+        // direct API response, once broadcast to all clients over the
+        // WebSocket. Drop an exact repeat that lands within 2s of the last
+        // one instead of showing it twice.
+        const now = Date.now();
+        if (message === app.state.lastLogMessage && now - app.state.lastLogMessageMs < 2000) {
+            return;
+        }
+        app.state.lastLogMessage = message;
+        app.state.lastLogMessageMs = now;
+
         const logEntry = document.createElement("p");
         logEntry.textContent = message;
         if (isError) {
@@ -326,7 +337,9 @@
             },
             state: {
                 devicesCache: [],
-                ws: null
+                ws: null,
+                lastLogMessage: null,
+                lastLogMessageMs: 0
             }
         };
 
