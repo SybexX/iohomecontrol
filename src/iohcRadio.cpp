@@ -73,7 +73,6 @@ namespace IOHC {
         bool preamble = digitalRead(RADIO_PREAMBLE_DETECTED);
         bool payload = digitalRead(RADIO_PACKET_AVAIL);
         iohcRadio::txComplete = true;
-        ets_printf("TX: TX-RX DONE detected, flag set\n");
 
 
         if (payload) {
@@ -168,7 +167,7 @@ namespace IOHC {
 
 /**
  * The `start` function initializes the radio with specified parameters and sets it to receive mode.
- * 
+ *
  * @param num_freqs The `num_freqs` parameter in the `start` function represents the number of
  * frequencies to scan. It is of type `uint8_t`, which means it is an unsigned 8-bit integer. This
  * parameter specifies how many frequencies the radio will scan during operation.
@@ -205,11 +204,11 @@ namespace IOHC {
 /**
  * The `tickerCounter` function in C++ handles various radio operations based on different conditions
  * and configurations for SX127X and CC1101 radios.
- * 
+ *
  * @param radio The `radio` parameter in the `iohcRadio::tickerCounter` function is a pointer to an
  * instance of the `iohcRadio` class. This pointer is used to access and modify the properties and
  * methods of the `iohcRadio` object within the function. The function uses this pointer
- * 
+ *
  * @return In the provided code snippet, the function `tickerCounter` is returning different values
  * based on the conditions met within the function. Here is a breakdown of the possible return
  * scenarios:
@@ -295,7 +294,7 @@ namespace IOHC {
      * code inside the function.
      */
 
-    /**  
+    /**
     void iohcRadio::send(std::vector<iohcPacket *> &iohcTx) {
         if (radioState == iohcRadio::RadioState::TX) return;
 
@@ -360,7 +359,7 @@ void iohcRadio::send(std::vector<iohcPacket *> &iohcTx) {
 }
 
 
- 
+
 void iohcRadio::onTxTicker(void *arg) {
     iohcRadio *radio = (iohcRadio *)arg;
     auto packet = radio->packets2send[radio->txCounter];
@@ -451,9 +450,9 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
 /**
  * The `sent` function in the `iohcRadio` class checks if a callback function `txCB` is set and calls
  * it with a packet as a parameter, returning the result.
- * 
+ *
  * @param packet The `packet` parameter is a pointer to an object of type `iohcPacket`.
- * 
+ *
  * @return The `sent` function is returning a boolean value, which is determined by the result of
  * calling the `txCB` function with the `packet` parameter. If `txCB` is not null, the return value
  * will be the result of calling `txCB(packet)`, otherwise it will be `false`.
@@ -475,12 +474,12 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
 /**
  * The `iohcRadio::receive` function in C++ toggles an LED, reads radio data, processes it, and
  * triggers a callback function.
- * 
+ *
  * @param stats The `stats` parameter in the `iohcRadio::receive` function is a boolean parameter that
  * is used to determine whether to gather additional statistics during the radio reception process. If
  * `stats` is set to `true`, the function will collect and process additional information such as RSSI
  * (Received Signal
- * 
+ *
  * @return The function `iohcRadio::receive` is returning a boolean value `true`.
  */
     bool IRAM_ATTR iohcRadio::receive(bool stats = false) {
